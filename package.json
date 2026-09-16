@@ -1,0 +1,11 @@
+{
+  "name": "@gum-jsx/pdf",
+  "description": "Gum rendering to PDF.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^7"
+  }
+}
