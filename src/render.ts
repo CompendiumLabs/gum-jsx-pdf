@@ -3,6 +3,7 @@ import { parse_color } from './color'
 import type { Color } from './color'
 import { ellipse_path, path_commands, rect_path, square_caps } from './path'
 import { PdfWriter, number, numbers, text_string } from './writer'
+import { embed_png } from './image'
 
 type PdfOptions = Readonly<{
   title?: string
@@ -25,7 +26,7 @@ function multiply(left: Transform, right: Transform): Transform {
 
 // A transparency form clips to its BBox. Use a control hull and conservative
 // stroke padding, independent of optional caller-provided ink bounds.
-function drawing_bounds(draw: Drawing): PixelRect {
+function drawing_bounds(draw: Exclude<Drawing, { kind: 'image' }>): PixelRect {
   let x: number, y: number, width: number, height: number
   if (draw.kind === 'rect') ({ x, y, width, height } = draw.rect)
   else if (draw.kind === 'ellipse') {
@@ -54,7 +55,7 @@ function positive(value: number, name: string): number {
   return value
 }
 
-/** Serialize a completed fragment to a single vector PDF page, without layout or fonts. */
+/** Serialize a completed fragment to a single PDF page, without layout or fonts. */
 function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
   const scale = positive(options.points_per_pixel ?? 72 / 96, 'points_per_pixel')
   const { width, height } = fragment.size
@@ -65,6 +66,7 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
   const writer = new PdfWriter(), catalog = writer.reserve(), pages = writer.reserve()
   const states = new Map<string, { name: string; id: number }>()
   const forms: { name: string; id: number }[] = []
+  const images = new Map<string, { name: string; id: number }>()
   const colors = new Map<string, Color | null>()
   const drawings = new WeakMap<Drawing, string>()
   function color(source: string): Color | null {
@@ -81,8 +83,8 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
     return `/${state.name} gs\n`
   }
   const state_resources = () => `/ExtGState << ${[...states.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
-  const resources = () => `${state_resources()} /XObject << ${forms.map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
-  function transparency_form(content: string, draw: Drawing): string {
+  const resources = () => `${state_resources()} /XObject << ${[...forms, ...images.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
+  function transparency_form(content: string, draw: Exclude<Drawing, { kind: 'image' }>): string {
     const { x, y, width, height } = drawing_bounds(draw)
     const name = `F${forms.length}`
     const id = writer.stream(content, `/Type /XObject /Subtype /Form /FormType 1`
@@ -98,6 +100,20 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
     if (cached !== undefined) return cached
     const opacity = draw.opacity ?? 1
     if (opacity === 0) return ''
+    if (draw.kind === 'image') {
+      const { x, y, width, height } = draw.rect
+      if (width === 0 || height === 0) return ''
+      let image = images.get(draw.data)
+      if (!image) {
+        image = { name: `I${images.size}`, id: embed_png(writer, draw.data) }
+        images.set(draw.data, image)
+      }
+      // PDF image coordinates run bottom-to-top, while Gum's page runs down.
+      const content = (opacity === 1 ? '' : alpha(opacity, opacity))
+        + `${numbers([width, 0, 0, -height, x, y + height])} cm\n/${image.name} Do\n`
+      drawings.set(draw, content)
+      return content
+    }
     let path: string
     switch (draw.kind) {
       case 'rect':

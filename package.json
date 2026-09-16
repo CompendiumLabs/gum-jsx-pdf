@@ -18,5 +18,9 @@
     "@gum-jsx/png": "workspace:*",
     "@types/bun": "latest",
     "typescript": "^7"
+  },
+  "dependencies": {
+    "fast-png": "^8.0.0",
+    "fflate": "^0.8.3"
   }
 }

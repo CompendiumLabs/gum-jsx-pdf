@@ -1,6 +1,6 @@
 # @gum-jsx/pdf
 
-Dependency-free vector PDF export for completed Gum fragments. Layout, text
+PDF export for completed Gum fragments, preserving vector drawings and embedded PNG images. Layout, text
 shaping, and glyph outlines are supplied by `@gum-jsx/core` (and optionally
 `@gum-jsx/math`); the exporter does not load fonts or perform layout.
 
@@ -16,9 +16,13 @@ await Bun.write('hello.pdf', bytes)
 ```
 
 `render_pdf(fragment, options?): Uint8Array` is synchronous and works in Bun or
-the browser. Only type imports refer to core; the exporter has no runtime package
-dependencies, native bindings, browser-only APIs, or filesystem access. In a browser,
+the browser. Only type imports refer to core; PNG decoding and compression use
+`fast-png` and `fflate`, with no native bindings or filesystem access. In a browser,
 the returned bytes can be used in a `Blob` with type `application/pdf`.
+
+The workspace applies `patches/fast-png@8.0.0.patch` during `bun install` to fix
+the decoder's transparency-key validation for tiny RGB images: a `tRNS` key has
+one value per color channel, independent of the image's pixel count.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -32,6 +36,11 @@ dimensions are limited to 14,400 points per side; larger dimensions are rejected
 
 Supported drawing features:
 
+- PNG images, including grayscale, RGB, indexed color, interlacing, and alpha.
+  Image samples are compressed losslessly at their original dimensions; 16-bit
+  samples retain their precision. Transparency uses a grayscale soft mask, and
+  repeated images share one embedded resource. PNG color profiles and gamma
+  metadata are not applied; samples use PDF DeviceRGB or DeviceGray.
 - Rectangles, ellipses, individually rounded corners, and paths (`M`, `L`, `Q`,
   `C`, `Z`). Quadratics convert exactly to cubics; elliptical arcs use the usual
   cubic approximation.
@@ -52,8 +61,9 @@ to one of the supported color formats before export.
 
 Text remains vector outlines: appearance is preserved, but text is not searchable
 or selectable. Fragment labels and debug overlays are not exported. This first
-version writes deterministic, uncompressed PDF 1.4 files; it does not paginate,
-embed images, or produce tagged/accessibility or archival PDF variants.
+version writes deterministic PDF 1.4 files with uncompressed vector content and
+compressed image streams; it does not paginate or produce tagged/accessibility
+or archival PDF variants.
 
 Development, from the workspace root:
 

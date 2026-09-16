@@ -24,32 +24,37 @@ function text_string(value: string): string {
 }
 
 class PdfWriter {
-  private readonly objects: (string | undefined)[] = []
+  private readonly objects: (string | Uint8Array | undefined)[] = []
   private readonly encoder = new TextEncoder()
 
   reserve(): number { this.objects.push(undefined); return this.objects.length }
-  set(id: number, body: string): void {
+  set(id: number, body: string | Uint8Array): void {
     if (id < 1 || id > this.objects.length || this.objects[id - 1] !== undefined) {
       throw new Error('Invalid or already written PDF object')
     }
     this.objects[id - 1] = body
   }
-  add(body: string): number { const id = this.reserve(); this.set(id, body); return id }
-  stream(content: string, entries = ''): number {
-    return this.add(`<< ${entries} /Length ${this.encoder.encode(content).length} >>\nstream\n${content}\nendstream`)
+  add(body: string | Uint8Array): number { const id = this.reserve(); this.set(id, body); return id }
+  stream(content: string | Uint8Array, entries = ''): number {
+    const bytes = typeof content === 'string' ? this.encoder.encode(content) : content
+    const prefix = this.encoder.encode(`<< ${entries} /Length ${bytes.length} >>\nstream\n`)
+    const suffix = this.encoder.encode('\nendstream')
+    const body = new Uint8Array(prefix.length + bytes.length + suffix.length)
+    body.set(prefix); body.set(bytes, prefix.length); body.set(suffix, prefix.length + bytes.length)
+    return this.add(body)
   }
   finish(root: number, info?: number): Uint8Array {
     const chunks: Uint8Array[] = [], offsets = [0]
     let length = 0
-    const append = (value: string) => {
-      const bytes = this.encoder.encode(value)
+    const append = (value: string | Uint8Array) => {
+      const bytes = typeof value === 'string' ? this.encoder.encode(value) : value
       chunks.push(bytes); length += bytes.length
     }
     append('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n')
     this.objects.forEach((body, i) => {
       if (body === undefined) throw new Error(`Unwritten PDF object ${i + 1}`)
       offsets.push(length)
-      append(`${i + 1} 0 obj\n${body}\nendobj\n`)
+      append(`${i + 1} 0 obj\n`); append(body); append('\nendobj\n')
     })
     const xref = length
     append(`xref\n0 ${offsets.length}\n0000000000 65535 f \n`)

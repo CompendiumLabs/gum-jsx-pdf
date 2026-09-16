@@ -6,8 +6,9 @@ import { mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import {
   draw_rect, draw_ellipse, draw_path, make_fragment, make_size, make_rect, make_clip,
-  place_fragment, render_svg, LayoutPass, Text, Span, px,
+  place_fragment, render_svg, LayoutPass, Text, Span, PngImage, px,
 } from '@gum-jsx/core'
+import { encode } from 'fast-png'
 import type { Drawing, Fragment, Paint, PathCommand, Transform } from '@gum-jsx/core'
 import { createMathFonts, mathToElement } from '@gum-jsx/math'
 import { rasterize_pixels, rasterize_svg } from '@gum-jsx/png'
@@ -45,7 +46,21 @@ const text = new LayoutPass().layout(new Text({ font_size: px(24), children: [
 const fonts = createMathFonts()
 const math_pass = new LayoutPass({ fonts: { value: fonts, version: fonts.version } })
 const formula = (source: string) => math_pass.layout(mathToElement(source, { font_size: px(23) }))
+const image_pixels = new Uint8Array(64 * 32 * 4)
+for (let y = 0; y < 32; y++) for (let x = 0; x < 64; x++) {
+  image_pixels.set([x * 4, y * 8, 255 - x * 4, x < 16 ? 0 : x < 32 ? 128 : 255], (y * 64 + x) * 4)
+}
+const image_data = `data:image/png;base64,${Buffer.from(encode({ width: 64, height: 32, data: image_pixels })).toString('base64')}`
+const image_pass = new LayoutPass()
+const png = image_pass.layout(new PngImage({ data: image_data, width: px(100), height: px(80) }))
+const translucent_png = image_pass.layout(new PngImage({ data: image_data, width: px(90), opacity: 0.5 }))
 const fixtures: Record<string, Fragment> = {
+  images: scene([rect(0, 0, 240, 160, { fill: '#e5df9a', stroke: 'none' })], [
+    place_fragment(png, [5, 0]), place_fragment(translucent_png, [130, 5]),
+    place_fragment(png, [110, 80], [-1, 0, 0, 1, 0, 0]),
+    place_fragment(make_fragment({ size: make_size(80, 60), clip: make_clip(make_rect(0, 0, 80, 60), [12, 12]),
+      children: [place_fragment(translucent_png, [-5, 5], rotation)] }), [135, 85]),
+  ]),
   geometry: scene([
     rect(10, 10, 60, 45),
     draw_rect(make_rect(90, 10, 80, 50), { ...paint, fill: '#b8e0c4' },

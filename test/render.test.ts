@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test'
 import {
   draw_rect, draw_path, make_fragment, make_size, make_rect, make_clip, place_fragment,
-  LayoutPass, Text, px,
+  LayoutPass, Text, PngImage, px, draw_image,
 } from '@gum-jsx/core'
+import { encode } from 'fast-png'
+import { unzlibSync } from 'fflate'
 import { render_pdf } from '../src/index'
 import { number, PdfWriter } from '../src/writer'
 import { path_commands, square_caps } from '../src/path'
@@ -78,7 +80,7 @@ test('square cap geometry distinguishes point subpaths from loops and lone moves
   ], 4)).toBe('8 18 4 4 re\n28 38 4 4 re\n')
 })
 
-test('entry point bundles for browsers without any runtime dependencies', async () => {
+test('entry point bundles for browsers without native or external runtime dependencies', async () => {
   const build = await Bun.build({ entrypoints: [new URL('../src/index.ts', import.meta.url).pathname], target: 'browser' })
   expect(build.success).toBe(true)
   expect(build.outputs).toHaveLength(1)
@@ -150,4 +152,82 @@ test('invalid page dimensions, scale and unsupported paints fail clearly', () =>
   expect(() => render_pdf(make_fragment({ size: make_size(0, 10) }))).toThrow('page width')
   expect(() => render_pdf(make_fragment({ size: make_size(20000, 10) }))).toThrow('14400 points')
   expect(() => render_pdf(leaf, { background: 'var(--background)' })).toThrow('Unsupported PDF color')
+})
+
+const png_url = (image: Parameters<typeof encode>[0], interlace: 'null' | 'Adam7' = 'null') =>
+  `data:image/png;base64,${Buffer.from(encode(image, { interlace })).toString('base64')}`
+
+function image_streams(bytes: Uint8Array) {
+  const source = Buffer.from(bytes).toString('latin1')
+  return [...source.matchAll(/<< ([^\n]*\/Subtype \/Image[^\n]*) \/Length (\d+) >>\nstream\n/g)].map(match => {
+    const start = match.index! + match[0].length
+    return { entries: match[1]!, pixels: [...unzlibSync(bytes.subarray(start, start + Number(match[2])))] }
+  })
+}
+
+test('PNG embeds original RGB samples and a reusable alpha mask with opacity and correct orientation', () => {
+  const data = png_url({ width: 2, height: 2, channels: 4,
+    data: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 128, 0, 0, 255, 0, 255, 255, 255, 255]) })
+  const node = new LayoutPass().layout(new PngImage({ data, width: px(20), height: px(10), opacity: 0.5 }))
+  const root = make_fragment({ size: make_size(50, 20), children: [place_fragment(node), place_fragment(node, [25, 0])] })
+  const bytes = render_pdf(root), pdf = decode(bytes), streams = image_streams(bytes)
+  expect(streams).toHaveLength(2)
+  expect(streams[0]!.pixels).toEqual([255, 128, 0, 255])
+  expect(streams[1]!.pixels).toEqual([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
+  expect(streams[1]!.entries).toContain('/Width 2 /Height 2 /BitsPerComponent 8')
+  expect(streams[1]!.entries).toContain('/SMask')
+  expect(pdf).toContain('10 0 0 -10 5 10 cm')
+  expect(pdf).toContain('/ca 0.5 /CA 0.5')
+  expect(pdf.match(/\/I0 Do/g)).toHaveLength(2)
+  check_structure(bytes)
+})
+
+test('PNG palette, packed grayscale, tRNS, 16-bit and Adam7 samples survive PDF export', () => {
+  const fixtures: { image: Parameters<typeof encode>[0]; color: number[]; mask?: number[]; interlace?: 'Adam7'; encoded?: string }[] = [
+    { image: { width: 2, height: 1, channels: 3, data: new Uint8Array([255, 0, 0, 0, 255, 0]) },
+      color: [255, 0, 0, 0, 255, 0], interlace: 'Adam7' },
+    { image: { width: 3, height: 2, channels: 1, depth: 1, data: new Uint8Array([0xa0, 0x40]),
+      palette: [[255, 0, 0, 0], [0, 0, 255, 255]] },
+      color: [0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0], mask: [255, 0, 255, 0, 255, 0] },
+    { image: { width: 3, height: 2, channels: 1, depth: 1, data: new Uint8Array([0xa0, 0x40]),
+      transparency: new Uint16Array([0]) }, color: [255, 0, 255, 0, 255, 0], mask: [255, 0, 255, 0, 255, 0],
+      // fast-png's encoder does not write non-palette tRNS chunks.
+      encoded: 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACAQAAAAC1D1u3AAAAAnRSTlMAAHaTzTgAAAAMSURBVHicY1jA4AAAAiQA4XPrO/IAAAAASUVORK5CYII=' },
+    { image: { width: 2, height: 1, channels: 3, data: new Uint8Array([255, 0, 0, 0, 255, 0]),
+      transparency: new Uint16Array([255, 0, 0]) }, color: [255, 0, 0, 0, 255, 0], mask: [0, 255],
+      encoded: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAABnRSTlMA/wAAAACkwsAdAAAAD0lEQVR4nGP4z8DA8J8BAAf/Af8Bf4mnAAAAAElFTkSuQmCC' },
+    { image: { width: 2, height: 1, channels: 2, depth: 16, data: new Uint16Array([0x1234, 0xffff, 0xabcd, 0x8000]) },
+      color: [0x12, 0x34, 0xab, 0xcd], mask: [255, 255, 128, 0] },
+  ]
+  for (const { image, color, mask, interlace, encoded } of fixtures) {
+    const data = encoded ? `data:image/png;base64,${encoded}` : png_url(image, interlace)
+    const node = new LayoutPass().layout(new PngImage({ data }))
+    const bytes = render_pdf(node), streams = image_streams(bytes)
+    expect(streams).toHaveLength(mask ? 2 : 1)
+    expect(streams.at(-1)!.pixels).toEqual(color)
+    if (mask) expect(streams[0]!.pixels).toEqual(mask)
+    check_structure(bytes)
+  }
+})
+
+test('browser bundle exports embedded PNGs synchronously', async () => {
+  const build = await Bun.build({ entrypoints: [new URL('../src/index.ts', import.meta.url).pathname], target: 'browser' })
+  expect(build.success).toBe(true)
+  const bundled = await import(`data:text/javascript;base64,${Buffer.from(await build.outputs[0]!.text()).toString('base64')}`)
+  const data = png_url({ width: 1, height: 1, data: new Uint8Array([255, 0, 0, 128]) })
+  const node = new LayoutPass().layout(new PngImage({ data }))
+  expect(bundled.render_pdf(node)).toEqual(render_pdf(node))
+})
+
+test('malformed PNG content fails at PDF export; invisible images need no decoding', () => {
+  const data = png_url({ width: 1, height: 1, data: new Uint8Array([255, 0, 0, 255]) })
+  const bytes = Buffer.from(data.slice(22), 'base64')
+  bytes[29] = bytes[29]! ^ 1 // Corrupt the IHDR checksum without changing the dimensions.
+  const node = new LayoutPass().layout(new PngImage({ data: `data:image/png;base64,${bytes.toString('base64')}` }))
+  expect(() => render_pdf(node)).toThrow()
+  const invisible = make_fragment({ size: make_size(10, 10), draw: [
+    draw_image(make_rect(0, 0, 5, 5), 'data:image/png;base64,invalid', 0),
+    draw_image(make_rect(0, 0, 0, 5), 'data:image/png;base64,invalid'),
+  ] })
+  expect(image_streams(render_pdf(invisible))).toHaveLength(0)
 })
