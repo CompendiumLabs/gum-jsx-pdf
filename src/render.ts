@@ -26,7 +26,7 @@ function multiply(left: Transform, right: Transform): Transform {
 
 // A transparency form clips to its BBox. Use a control hull and conservative
 // stroke padding, independent of optional caller-provided ink bounds.
-function drawing_bounds(draw: Exclude<Drawing, { kind: 'image' }>): PixelRect {
+function drawing_bounds(draw: Exclude<Drawing, { kind: 'image' | 'text' }>): PixelRect {
   let x: number, y: number, width: number, height: number
   if (draw.kind === 'rect') ({ x, y, width, height } = draw.rect)
   else if (draw.kind === 'ellipse') {
@@ -84,7 +84,7 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
   }
   const state_resources = () => `/ExtGState << ${[...states.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
   const resources = () => `${state_resources()} /XObject << ${[...forms, ...images.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
-  function transparency_form(content: string, draw: Exclude<Drawing, { kind: 'image' }>): string {
+  function transparency_form(content: string, draw: Exclude<Drawing, { kind: 'image' | 'text' }>): string {
     const { x, y, width, height } = drawing_bounds(draw)
     const name = `F${forms.length}`
     const id = writer.stream(content, `/Type /XObject /Subtype /Form /FormType 1`
@@ -113,6 +113,11 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
         + `${numbers([width, 0, 0, -height, x, y + height])} cm\n/${image.name} Do\n`
       drawings.set(draw, content)
       return content
+    }
+    // Live text relies on a host font. A PDF would have to embed color glyph
+    // data, so report the family, with no silently missing emoji on the page.
+    if (draw.kind === 'text') {
+      throw new TypeError(`PDF output cannot draw live text in ${draw.font_family}: "${draw.text}"`)
     }
     let path: string
     switch (draw.kind) {

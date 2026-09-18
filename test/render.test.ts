@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test'
 import {
   draw_rect, draw_path, make_fragment, make_size, make_rect, make_clip, place_fragment,
-  LayoutPass, Text, PngImage, px, draw_image,
+  LayoutPass, Text, PngImage, px, draw_image, draw_text,
 } from '@gum-jsx/core'
 import { encode } from 'fast-png'
 import { unzlibSync } from 'fflate'
@@ -230,4 +230,13 @@ test('malformed PNG content fails at PDF export; invisible images need no decodi
     draw_image(make_rect(0, 0, 0, 5), 'data:image/png;base64,invalid'),
   ] })
   expect(image_streams(render_pdf(invisible))).toHaveLength(0)
+})
+
+test('live color font text names its family instead of vanishing from the page', () => {
+  const font = { family: 'Noto Color Emoji', size: 16 }, bounds = make_rect(0, 0, 20, 19)
+  const emoji = (opacity: number) => make_fragment({ size: make_size(20, 20), draw: [
+    draw_text('\u{1f600}', { x: 0, y: 15 }, 20, font, { fill: 'black', opacity }, bounds),
+  ] })
+  expect(() => render_pdf(emoji(1))).toThrow('cannot draw live text in Noto Color Emoji')
+  check_structure(render_pdf(emoji(0)))
 })

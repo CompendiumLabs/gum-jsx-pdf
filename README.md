@@ -60,7 +60,8 @@ wide-gamut colors, and CSS calculations) throw a descriptive error. Resolve them
 to one of the supported color formats before export.
 
 Text remains vector outlines: appearance is preserved, but text is not searchable
-or selectable. Fragment labels and debug overlays are not exported. This first
+or selectable. Live text from a color font, such as emoji, has no outline and no
+embedded font data here, so exporting it throws an error naming the family. Fragment labels and debug overlays are not exported. This first
 version writes deterministic PDF 1.4 files with uncompressed vector content and
 compressed image streams; it does not paginate or produce tagged/accessibility
 or archival PDF variants.
