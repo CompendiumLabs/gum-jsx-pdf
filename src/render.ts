@@ -1,8 +1,8 @@
-import type { Drawing, Fragment, PixelRect, Transform } from '@gum-jsx/core'
+import type { Drawing, Fragment, OutputPrecision, PixelRect, Transform } from '@gum-jsx/core'
 import { parse_color } from './color'
 import type { Color } from './color'
 import { ellipse_path, path_commands, rect_path, square_caps } from './path'
-import { PdfWriter, number, numbers, text_string } from './writer'
+import { PdfWriter, pdf_number_formatter, text_string } from './writer'
 import { embed_png } from './image'
 
 type PdfOptions = Readonly<{
@@ -10,11 +10,13 @@ type PdfOptions = Readonly<{
   background?: string
   /** Physical scale; defaults to 72 / 96 points per layout pixel. */
   points_per_pixel?: number
+  precision?: OutputPrecision
 }>
 
 const IDENTITY: Transform = [1, 0, 0, 1, 0, 0]
 const is_identity = (matrix: Transform) => matrix.every((value, i) => value === IDENTITY[i])
-const matrix_command = (matrix: Transform) => is_identity(matrix) ? '' : `${numbers(matrix)} cm\n`
+const matrix_command = (matrix: Transform, numbers: (values: readonly number[]) => string) =>
+  is_identity(matrix) ? '' : `${numbers(matrix)} cm\n`
 
 // Keep affine transforms in PDF, including their effect on strokes and dashes.
 // Accumulating placement-only nodes avoids a graphics-state stack per wrapper.
@@ -57,6 +59,7 @@ function positive(value: number, name: string): number {
 
 /** Serialize a completed fragment to a single PDF page, without layout or fonts. */
 function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
+  const { number, numbers } = pdf_number_formatter(options.precision)
   const scale = positive(options.points_per_pixel ?? 72 / 96, 'points_per_pixel')
   const { width, height } = fragment.size
   const page_width = positive(width * scale, 'page width'), page_height = positive(height * scale, 'page height')
@@ -123,13 +126,13 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
     switch (draw.kind) {
       case 'rect':
         if (draw.rect.width === 0 || draw.rect.height === 0) return ''
-        path = rect_path(draw.rect, draw.radius); break
+        path = rect_path(draw.rect, draw.radius, numbers); break
       case 'ellipse':
         if (draw.radius.x === 0 || draw.radius.y === 0) return ''
-        path = ellipse_path(draw.center, draw.radius); break
+        path = ellipse_path(draw.center, draw.radius, numbers); break
       case 'path':
         if (!draw.commands.some(command => command.kind !== 'M')) return ''
-        path = path_commands(draw.commands); break
+        path = path_commands(draw.commands, numbers); break
       default: throw new TypeError('Unknown PDF drawing kind')
     }
     const fill_color = color(draw.fill), stroke_color = color(draw.stroke)
@@ -153,7 +156,7 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
     if (fill) content += path + 'f\n'
     if (stroke) {
       const caps = draw.kind === 'path' && draw.stroke_linecap === 'square'
-        ? square_caps(draw.commands, draw.stroke_width) : ''
+        ? square_caps(draw.commands, draw.stroke_width, numbers) : ''
       if (caps) {
         const stroke_content = alpha(1, 1) + path + 'S\n' + `${numbers(stroke.slice(0, 3))} rg\n` + caps + 'f\n'
         // Combine cap geometry with the stroke before applying its alpha, so
@@ -171,7 +174,7 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
   }
 
   const content: string[] = ['q\n', `${numbers([scale, 0, 0, -scale, 0, page_height])} cm\n`,
-    rect_path({ x: 0, y: 0, width, height }), 'W n\n']
+    rect_path({ x: 0, y: 0, width, height }, undefined, numbers), 'W n\n']
   if (options.background !== undefined) {
     const background: Drawing = { kind: 'rect', rect: { x: 0, y: 0, width, height },
       fill: options.background, stroke: 'none', stroke_width: 0 }
@@ -181,12 +184,12 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
   function visit(node: Fragment, transform: Transform): void {
     if (node.clip && (node.clip.width === 0 || node.clip.height === 0)) return
     if (node.clip) {
-      content.push('q\n', matrix_command(transform), rect_path(node.clip, node.clip.radius), 'W n\n')
+      content.push('q\n', matrix_command(transform, numbers), rect_path(node.clip, node.clip.radius, numbers), 'W n\n')
       transform = IDENTITY
     }
     for (const draw of node.draw) {
       const drawing = render_drawing(draw)
-      if (drawing) content.push('q\n', matrix_command(transform), drawing, 'Q\n')
+      if (drawing) content.push('q\n', matrix_command(transform, numbers), drawing, 'Q\n')
     }
     for (const child of node.children) {
       const [a, b, c, d, e, f] = child.transform ?? IDENTITY

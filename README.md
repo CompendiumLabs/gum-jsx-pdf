@@ -29,6 +29,7 @@ one value per color channel, independent of the image's pixel count.
 | `title` | omitted | Unicode PDF document title. |
 | `background` | omitted | Page background color; otherwise unpainted. |
 | `points_per_pixel` | `0.75` | Physical scale: 96 layout pixels per inch, 72 PDF points per inch. Use `1` to treat each layout pixel as one point. |
+| `precision` | `10` | Significant digits in numeric output; use 1–17 or `'full'` for unrounded values. |
 
 The single page matches `fragment.size`, clipping any overflow to that viewport.
 Both page dimensions and the scale must be positive and finite. PDF 1.4 page

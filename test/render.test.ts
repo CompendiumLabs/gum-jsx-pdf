@@ -64,6 +64,21 @@ test('PDF numbers preserve small values without exponent notation', () => {
   for (const value of [Infinity, -Infinity, NaN]) expect(() => number(value)).toThrow()
 })
 
+test('PDF output precision rounds paths and page dimensions without changing fragments', () => {
+  const source = make_fragment({ size: make_size(0.1 + 0.2, 1 / 3),
+    draw: [draw_path([{ kind: 'M', x: 0.1 + 0.2, y: 0 },
+      { kind: 'L', x: 1 / 3, y: 1e-7 }], { fill: 'none', stroke: 'black', stroke_width: 0.1 + 0.2 })] })
+  const rounded = decode(render_pdf(source, { points_per_pixel: 1 }))
+  expect(rounded).toContain('/MediaBox [0 0 0.3 0.3333333333]')
+  expect(rounded).toContain('0.3 0 m\n0.3333333333 0.0000001 l\n')
+  expect(rounded).toContain('0.3 w\n')
+  expect(decode(render_pdf(source, { points_per_pixel: 1, precision: 3 }))).toContain('0.333 0.0000001 l\n')
+  expect(decode(render_pdf(source, { points_per_pixel: 1, precision: 'full' })))
+    .toContain('/MediaBox [0 0 0.30000000000000004 0.3333333333333333]')
+  expect(source.size.width).toBe(0.1 + 0.2)
+  expect(() => render_pdf(source, { precision: 0 })).toThrow('precision')
+})
+
 test('quadratics convert exactly and closepath restores the current point', () => {
   expect(path_commands([
     { kind: 'M', x: 0, y: 0 }, { kind: 'Q', x1: 3, y1: 6, x: 6, y: 0 },

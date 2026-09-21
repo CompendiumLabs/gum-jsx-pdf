@@ -1,8 +1,8 @@
-// PDF numbers cannot use exponent notation. Retain JavaScript's precision while
-// expanding very small/large values, including coordinates from transformed text.
-function number(value: number): string {
-  if (!Number.isFinite(value)) throw new RangeError('PDF numbers must be finite')
-  const source = String(value)
+import { DEFAULT_OUTPUT_PRECISION, output_number_formatter } from '@gum-jsx/core'
+import type { OutputPrecision } from '@gum-jsx/core'
+
+// PDF numbers cannot use exponent notation, including after significant-digit rounding.
+function expand_exponent(source: string): string {
   if (!/[eE]/.test(source)) return source
   const [mantissa, exponent] = source.split('e') as [string, string]
   const sign = mantissa.startsWith('-') ? '-' : ''
@@ -14,7 +14,20 @@ function number(value: number): string {
     : digits.slice(0, position) + '.' + digits.slice(position))
 }
 
-function numbers(values: readonly number[]): string { return values.map(number).join(' ') }
+function number(value: number, precision: OutputPrecision = 'full'): string {
+  return expand_exponent(output_number_formatter(precision)(value))
+}
+
+function numbers(values: readonly number[], precision: OutputPrecision = 'full'): string {
+  return values.map(value => number(value, precision)).join(' ')
+}
+
+function pdf_number_formatter(precision: OutputPrecision = DEFAULT_OUTPUT_PRECISION) {
+  // Validate once so even an empty PDF rejects invalid options.
+  const format_number = output_number_formatter(precision)
+  const format = (value: number) => expand_exponent(format_number(value))
+  return { number: format, numbers: (values: readonly number[]) => values.map(format).join(' ') }
+}
 
 // Metadata is a UTF-16BE PDF text string, independent of file byte encoding.
 function text_string(value: string): string {
@@ -71,4 +84,4 @@ class PdfWriter {
   }
 }
 
-export { PdfWriter, number, numbers, text_string }
+export { PdfWriter, number, numbers, pdf_number_formatter, text_string }
