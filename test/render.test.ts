@@ -151,7 +151,7 @@ test('dash defaults and nonzero winding glyph holes survive serialization', () =
     { kind: 'M', x: 0, y: 0 }, { kind: 'L', x: 10, y: 0 },
   ], { ...paint, fill: 'none', stroke: 'red', stroke_width: 2, stroke_dasharray: [0, 0] })] })
   expect(decode(render_pdf(shape))).toContain('[] 0 d')
-  const pass = new LayoutPass(), text = pass.layout(new Text({ text: 'AV office Ω', font_size: px(24) }))
+  const pass = new LayoutPass(), text = pass.layout(new Text({ children: 'AV office Ω', font_size: px(24) }))
   const before = { ...pass.stats }
   const pdf = decode(render_pdf(text))
   expect(pdf).toContain(' c\n')

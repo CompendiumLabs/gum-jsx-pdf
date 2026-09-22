@@ -9,7 +9,7 @@ import { LayoutPass, Text, px } from '@gum-jsx/core'
 import { render_pdf } from '@gum-jsx/pdf'
 
 const fragment = new LayoutPass().layout(
-  new Text({ text: 'Hello, PDF!', font_size: px(32) }),
+  new Text({ children: 'Hello, PDF!', font_size: px(32) }),
 )
 const bytes = render_pdf(fragment, { title: 'Hello', background: 'white' })
 await Bun.write('hello.pdf', bytes)
