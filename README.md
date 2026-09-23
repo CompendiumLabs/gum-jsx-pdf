@@ -5,7 +5,7 @@ shaping, and glyph outlines are supplied by `@gum-jsx/core` (and optionally
 `@gum-jsx/math`); the exporter does not load fonts or perform layout.
 
 See the [Gum project](https://github.com/CompendiumLabs/gum-jsx#readme) for
-workspace setup and the package overview.
+getting started and the package overview.
 
 ## Usage
 
@@ -25,9 +25,10 @@ the browser. Numeric serialization uses core's shared formatter; PNG decoding an
 `fast-png` and `fflate`, with no native bindings or filesystem access. In a browser,
 the returned bytes can be used in a `Blob` with type `application/pdf`.
 
-The workspace applies `patches/fast-png@8.0.0.patch` during `bun install` to fix
-the decoder's transparency-key validation for tiny RGB images: a `tRNS` key has
-one value per color channel, independent of the image's pixel count.
+Known limitation: `fast-png` 8.0.0 rejects RGB PNGs with only one or two pixels
+and a `tRNS` transparency key. PDF export throws for these images; convert them
+to RGBA before embedding. Ordinary RGBA PNGs, including transparent 1×1 images,
+are unaffected. The package uses the unmodified decoder.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -76,7 +77,6 @@ or archival PDF variants.
 From the workspace root:
 
 ```sh
-bun install
 bun --filter @gum-jsx/pdf test
 bun --filter @gum-jsx/pdf typecheck
 bun --filter @gum-jsx/pdf test:visual

@@ -1,0 +1,23 @@
+// Fixed PNG bytes keep decoder regressions independent of fast-png’s encoder.
+export const unsupportedKeyedPngs = [
+  {
+    "name": "1-pixel RGB8 with tRNS",
+    "encoded": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAABnRSTlMA/wAAAACkwsAdAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+  },
+  {
+    "name": "2-pixel RGB8 with tRNS",
+    "encoded": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAABnRSTlMA/wAAAACkwsAdAAAAD0lEQVR4nGP4z8DA8J8BAAf/Af8Bf4mnAAAAAElFTkSuQmCC"
+  },
+  {
+    "name": "1-pixel RGB16 with tRNS",
+    "encoded": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABEAIAAADA54+dAAAABnRSTlP//wAAAABABmvRAAAADUlEQVR4nGP4/58BCAAK/AH/E8mFCQAAAABJRU5ErkJggg=="
+  },
+  {
+    "name": "2-pixel RGB16 with tRNS",
+    "encoded": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABEAIAAAAr0DSeAAAABnRSTlP//wAAAABABmvRAAAAD0lEQVR4nGP4/58BDEA0AB3vA/2Q9PvnAAAAAElFTkSuQmCC"
+  }
+] as const
+
+export const rgbaPixel = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DQAAAEgQGALFXOsAAAAABJRU5ErkJggg=="
+
+export const keyedRgb = "iVBORw0KGgoAAAANSUhEUgAAAAMAAAABCAIAAACUgoPjAAAABnRSTlMA/wAAAACkwsAdAAAADklEQVR4nGP4z8DAAMYADvsC/gkcFjQAAAAASUVORK5CYII="

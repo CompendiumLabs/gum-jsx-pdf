@@ -8,6 +8,7 @@ import { unzlibSync } from 'fflate'
 import { render_pdf } from '../src/index'
 import { number, PdfWriter } from '../src/writer'
 import { path_commands, square_caps } from '../src/path'
+import { unsupportedKeyedPngs, rgbaPixel, keyedRgb } from './png-fixtures'
 
 const paint = { fill: '#369', stroke: 'none', stroke_width: 0 }
 const leaf = make_fragment({ size: make_size(20, 10), draw: [draw_rect(make_rect(0, 0, 20, 10), paint)] })
@@ -212,9 +213,9 @@ test('PNG palette, packed grayscale, tRNS, 16-bit and Adam7 samples survive PDF 
       transparency: new Uint16Array([0]) }, color: [255, 0, 255, 0, 255, 0], mask: [255, 0, 255, 0, 255, 0],
       // fast-png's encoder does not write non-palette tRNS chunks.
       encoded: 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACAQAAAAC1D1u3AAAAAnRSTlMAAHaTzTgAAAAMSURBVHicY1jA4AAAAiQA4XPrO/IAAAAASUVORK5CYII=' },
-    { image: { width: 2, height: 1, channels: 3, data: new Uint8Array([255, 0, 0, 0, 255, 0]),
-      transparency: new Uint16Array([255, 0, 0]) }, color: [255, 0, 0, 0, 255, 0], mask: [0, 255],
-      encoded: 'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAABnRSTlMA/wAAAACkwsAdAAAAD0lEQVR4nGP4z8DA8J8BAAf/Af8Bf4mnAAAAAElFTkSuQmCC' },
+    { image: { width: 3, height: 1, channels: 3, data: new Uint8Array([255, 0, 0, 0, 255, 0, 0, 0, 255]),
+      transparency: new Uint16Array([255, 0, 0]) }, color: [255, 0, 0, 0, 255, 0, 0, 0, 255], mask: [0, 255, 255],
+      encoded: keyedRgb },
     { image: { width: 2, height: 1, channels: 2, depth: 16, data: new Uint16Array([0x1234, 0xffff, 0xabcd, 0x8000]) },
       color: [0x12, 0x34, 0xab, 0xcd], mask: [255, 255, 128, 0] },
   ]
@@ -227,6 +228,22 @@ test('PNG palette, packed grayscale, tRNS, 16-bit and Adam7 samples survive PDF 
     if (mask) expect(streams[0]!.pixels).toEqual(mask)
     check_structure(bytes)
   }
+})
+
+test('vanilla fast-png rejects one- and two-pixel RGB transparency keys', () => {
+  // Accepted release limitation. Revisit these expectations when upgrading fast-png.
+  for (const { encoded } of unsupportedKeyedPngs) {
+    const node = new LayoutPass().layout(new PngImage({ data: `data:image/png;base64,${encoded}` }))
+    expect(() => render_pdf(node)).toThrow('tRNS chunk contains more alpha values than there are pixels')
+  }
+})
+
+test('one-pixel RGBA keeps color and alpha samples', () => {
+  const node = new LayoutPass().layout(new PngImage({ data: `data:image/png;base64,${rgbaPixel}` }))
+  const streams = image_streams(render_pdf(node))
+  expect(streams).toHaveLength(2)
+  expect(streams[0]!.pixels).toEqual([128])
+  expect(streams[1]!.pixels).toEqual([255, 0, 0])
 })
 
 test('browser bundle exports embedded PNGs synchronously', async () => {
