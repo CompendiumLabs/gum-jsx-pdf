@@ -5,7 +5,6 @@
   "module": "src/index.ts",
   "types": "src/index.ts",
   "exports": "./src/index.ts",
-  "private": true,
   "license": "MIT",
   "scripts": {
     "test": "bun test ./test",
@@ -13,7 +12,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@gum-jsx/core": "workspace:*",
     "@gum-jsx/math": "workspace:*",
     "@gum-jsx/png": "workspace:*",
     "@types/bun": "latest",
@@ -21,6 +19,28 @@
   },
   "dependencies": {
     "fast-png": "^8.0.0",
-    "fflate": "^0.8.3"
-  }
+    "fflate": "^0.8.3",
+    "@gum-jsx/core": "workspace:*"
+  },
+  "version": "2.0.0-beta.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CompendiumLabs/gum-jsx-pdf.git"
+  },
+  "homepage": "https://github.com/CompendiumLabs/gum-jsx-pdf#readme",
+  "bugs": {
+    "url": "https://github.com/CompendiumLabs/gum-jsx-pdf/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ]
 }

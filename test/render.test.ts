@@ -72,11 +72,15 @@ test('PDF output precision rounds paths and page dimensions without changing fra
   expect(rounded).toContain('/MediaBox [0 0 0.3 0.3333333333]')
   expect(rounded).toContain('0.3 0 m\n0.3333333333 0.0000001 l\n')
   expect(rounded).toContain('0.3 w\n')
-  expect(decode(render_pdf(source, { points_per_pixel: 1, precision: 3 }))).toContain('0.333 0.0000001 l\n')
+  expect(decode(render_pdf(source, { points_per_pixel: 1, precision: 3 }))).toContain('0.333 0 l\n')
+  expect(decode(render_pdf(leaf, { points_per_pixel: 1.23456, precision: 3 })))
+    .toContain('/MediaBox [0 0 24.691 12.346]')
+  expect(decode(render_pdf(leaf, { points_per_pixel: 1.23456, precision: 0 })))
+    .toContain('/MediaBox [0 0 25 12]')
   expect(decode(render_pdf(source, { points_per_pixel: 1, precision: 'full' })))
     .toContain('/MediaBox [0 0 0.30000000000000004 0.3333333333333333]')
   expect(source.size.width).toBe(0.1 + 0.2)
-  expect(() => render_pdf(source, { precision: 0 })).toThrow('precision')
+  expect(() => render_pdf(source, { precision: -1 })).toThrow('precision')
 })
 
 test('quadratics convert exactly and closepath restores the current point', () => {

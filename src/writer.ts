@@ -1,7 +1,7 @@
 import { DEFAULT_OUTPUT_PRECISION, output_number_formatter } from '@gum-jsx/core'
 import type { OutputPrecision } from '@gum-jsx/core'
 
-// PDF numbers cannot use exponent notation, including after significant-digit rounding.
+// PDF numbers cannot use exponent notation, including after decimal-place rounding.
 function expand_exponent(source: string): string {
   if (!/[eE]/.test(source)) return source
   const [mantissa, exponent] = source.split('e') as [string, string]

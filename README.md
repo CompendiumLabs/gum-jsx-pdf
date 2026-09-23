@@ -4,6 +4,11 @@ PDF export for completed Gum fragments, preserving vector drawings and embedded 
 shaping, and glyph outlines are supplied by `@gum-jsx/core` (and optionally
 `@gum-jsx/math`); the exporter does not load fonts or perform layout.
 
+See the [Gum project](https://github.com/CompendiumLabs/gum-jsx#readme) for
+workspace setup and the package overview.
+
+## Usage
+
 ```ts
 import { LayoutPass, Text, px } from '@gum-jsx/core'
 import { render_pdf } from '@gum-jsx/pdf'
@@ -16,7 +21,7 @@ await Bun.write('hello.pdf', bytes)
 ```
 
 `render_pdf(fragment, options?): Uint8Array` is synchronous and works in Bun or
-the browser. Only type imports refer to core; PNG decoding and compression use
+the browser. Numeric serialization uses core's shared formatter; PNG decoding and compression use
 `fast-png` and `fflate`, with no native bindings or filesystem access. In a browser,
 the returned bytes can be used in a `Blob` with type `application/pdf`.
 
@@ -29,7 +34,7 @@ one value per color channel, independent of the image's pixel count.
 | `title` | omitted | Unicode PDF document title. |
 | `background` | omitted | Page background color; otherwise unpainted. |
 | `points_per_pixel` | `0.75` | Physical scale: 96 layout pixels per inch, 72 PDF points per inch. Use `1` to treat each layout pixel as one point. |
-| `precision` | `10` | Significant digits in numeric output; use 1–17 or `'full'` for unrounded values. |
+| `precision` | `10` | Decimal places in numeric output; use 0–100 or `'full'` for unrounded values. |
 
 The single page matches `fragment.size`, clipping any overflow to that viewport.
 Both page dimensions and the scale must be positive and finite. PDF 1.4 page
@@ -62,12 +67,13 @@ to one of the supported color formats before export.
 
 Text remains vector outlines: appearance is preserved, but text is not searchable
 or selectable. Live text from a color font, such as emoji, has no outline and no
-embedded font data here, so exporting it throws an error naming the family. Fragment labels and debug overlays are not exported. This first
-version writes deterministic PDF 1.4 files with uncompressed vector content and
+embedded font data here, so exporting it throws an error naming the family. Fragment labels and debug overlays are not exported. The exporter writes deterministic PDF 1.4 files with uncompressed vector content and
 compressed image streams; it does not paginate or produce tagged/accessibility
 or archival PDF variants.
 
-Development, from the workspace root:
+## Development
+
+From the workspace root:
 
 ```sh
 bun install
