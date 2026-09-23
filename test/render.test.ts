@@ -56,6 +56,39 @@ test('writer counts stream lengths and cross-reference positions in bytes', () =
   check_structure(writer.finish(root))
 })
 
+test('multipage PDFs preserve page order, individual viewports, and shared resources', () => {
+  const shared = make_fragment({ size: leaf.size, draw: [
+    draw_rect(make_rect(0, 0, 20, 10), { ...paint, stroke: 'red', stroke_width: 2, opacity: 0.5 }),
+    draw_image(make_rect(0, 0, 5, 5), `data:image/png;base64,${rgbaPixel}`),
+  ] })
+  const larger = make_fragment({ size: make_size(80, 40), children: [place_fragment(shared)] })
+  const pages = [leaf, shared, larger, leaf] as const
+  const options = { title: 'Deck', background: 'white', points_per_pixel: 1 }
+  const bytes = render_pdf(pages, options), pdf = decode(bytes)
+  expect(bytes).toEqual(render_pdf(pages, options))
+  expect(render_pdf([leaf])).toEqual(render_pdf(leaf))
+  const kids = /\/Kids \[([^\]]+)\] \/Count 4/.exec(pdf)![1]!.match(/\d+ 0 R/g)!
+  expect(kids).toHaveLength(4)
+  for (const [index, ref] of kids.entries()) {
+    const page = pdf.slice(pdf.indexOf(`${ref.split(' ')[0]} 0 obj\n`)).split('endobj')[0]!
+    const { width, height } = pages[index]!.size
+    expect(page).toContain(`/MediaBox [0 0 ${width} ${height}]`)
+    expect(page).toContain('/Parent 2 0 R')
+  }
+  expect(pdf.match(/\/Subtype \/Form/g)).toHaveLength(1)
+  expect(pdf.match(/\/Subtype \/Image/g)).toHaveLength(2) // RGB + alpha mask, shared by pages.
+  expect(pdf.match(/\/I0 Do/g)).toHaveLength(2)
+  expect(pdf.match(/\/F0 Do/g)).toHaveLength(2)
+  expect(pdf.match(/1 1 1 rg/g)).toHaveLength(4)
+  check_structure(bytes)
+})
+
+test('multipage export rejects empty input and invalid later pages', () => {
+  expect(() => render_pdf([])).toThrow('at least one page')
+  expect(() => render_pdf([leaf, make_fragment({ size: make_size(0, 10) })])).toThrow('page width')
+  expect(() => render_pdf([leaf, make_fragment({ size: make_size(10, 20000) })])).toThrow('14400 points')
+})
+
 test('PDF numbers preserve small values without exponent notation', () => {
   for (const value of [0, -0, 0.1234567890123456, 1e-7, -2.3e-12, 1e21, -1.23e25, Number.MIN_VALUE]) {
     const serialized = number(value)
@@ -107,6 +140,7 @@ test('entry point bundles for browsers without native or external runtime depend
   const source = await build.outputs[0]!.text()
   const bundled = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
   expect(bundled.render_pdf(leaf)).toEqual(render_pdf(leaf))
+  expect(bundled.render_pdf([leaf, leaf])).toEqual(render_pdf([leaf, leaf]))
 })
 
 test('placement transforms accumulate in order without growing the PDF stack', () => {

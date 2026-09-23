@@ -57,15 +57,12 @@ function positive(value: number, name: string): number {
   return value
 }
 
-/** Serialize a completed fragment to a single PDF page, without layout or fonts. */
-function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
+/** Serialize completed fragments to PDF pages in order, without layout or fonts. */
+function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions = {}): Uint8Array {
+  const fragments: readonly Fragment[] = Array.isArray(input) ? input : [input as Fragment]
+  if (fragments.length === 0) throw new RangeError('PDF output requires at least one page')
   const { number, numbers } = pdf_number_formatter(options.precision)
   const scale = positive(options.points_per_pixel ?? 72 / 96, 'points_per_pixel')
-  const { width, height } = fragment.size
-  const page_width = positive(width * scale, 'page width'), page_height = positive(height * scale, 'page height')
-  if (page_width > 14_400 || page_height > 14_400) {
-    throw new RangeError('PDF 1.4 page dimensions must not exceed 14400 points')
-  }
   const writer = new PdfWriter(), catalog = writer.reserve(), pages = writer.reserve()
   const states = new Map<string, { name: string; id: number }>()
   const forms: { name: string; id: number }[] = []
@@ -173,39 +170,47 @@ function render_pdf(fragment: Fragment, options: PdfOptions = {}): Uint8Array {
     return content
   }
 
-  const content: string[] = ['q\n', `${numbers([scale, 0, 0, -scale, 0, page_height])} cm\n`,
-    rect_path({ x: 0, y: 0, width, height }, undefined, numbers), 'W n\n']
-  if (options.background !== undefined) {
-    const background: Drawing = { kind: 'rect', rect: { x: 0, y: 0, width, height },
-      fill: options.background, stroke: 'none', stroke_width: 0 }
-    content.push('q\n', render_drawing(background), 'Q\n')
-  }
+  function render_page(fragment: Fragment): number {
+    const { width, height } = fragment.size
+    const page_width = positive(width * scale, 'page width'), page_height = positive(height * scale, 'page height')
+    if (page_width > 14_400 || page_height > 14_400) {
+      throw new RangeError('PDF 1.4 page dimensions must not exceed 14400 points')
+    }
+    const content: string[] = ['q\n', `${numbers([scale, 0, 0, -scale, 0, page_height])} cm\n`,
+      rect_path({ x: 0, y: 0, width, height }, undefined, numbers), 'W n\n']
+    if (options.background !== undefined) {
+      const background: Drawing = { kind: 'rect', rect: { x: 0, y: 0, width, height },
+        fill: options.background, stroke: 'none', stroke_width: 0 }
+      content.push('q\n', render_drawing(background), 'Q\n')
+    }
 
-  function visit(node: Fragment, transform: Transform): void {
-    if (node.clip && (node.clip.width === 0 || node.clip.height === 0)) return
-    if (node.clip) {
-      content.push('q\n', matrix_command(transform, numbers), rect_path(node.clip, node.clip.radius, numbers), 'W n\n')
-      transform = IDENTITY
+    function visit(node: Fragment, transform: Transform): void {
+      if (node.clip && (node.clip.width === 0 || node.clip.height === 0)) return
+      if (node.clip) {
+        content.push('q\n', matrix_command(transform, numbers), rect_path(node.clip, node.clip.radius, numbers), 'W n\n')
+        transform = IDENTITY
+      }
+      for (const draw of node.draw) {
+        const drawing = render_drawing(draw)
+        if (drawing) content.push('q\n', matrix_command(transform, numbers), drawing, 'Q\n')
+      }
+      for (const child of node.children) {
+        const [a, b, c, d, e, f] = child.transform ?? IDENTITY
+        // SVG paints nothing for singular placements, even with a visible stroke.
+        if (a * d - b * c === 0) continue
+        visit(child.fragment, multiply(transform, [a, b, c, d, e + child.offset.x, f + child.offset.y]))
+      }
+      if (node.clip) content.push('Q\n')
     }
-    for (const draw of node.draw) {
-      const drawing = render_drawing(draw)
-      if (drawing) content.push('q\n', matrix_command(transform, numbers), drawing, 'Q\n')
-    }
-    for (const child of node.children) {
-      const [a, b, c, d, e, f] = child.transform ?? IDENTITY
-      // SVG paints nothing for singular placements, even with a visible stroke.
-      if (a * d - b * c === 0) continue
-      visit(child.fragment, multiply(transform, [a, b, c, d, e + child.offset.x, f + child.offset.y]))
-    }
-    if (node.clip) content.push('Q\n')
+    visit(fragment, IDENTITY)
+    content.push('Q\n')
+    const stream = writer.stream(content.join(''))
+    return writer.add(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${numbers([page_width, page_height])}]`
+      + ` /Resources << ${resources()} >> /Contents ${stream} 0 R`
+      + ' /Group << /S /Transparency /CS /DeviceRGB /I true >> >>')
   }
-  visit(fragment, IDENTITY)
-  content.push('Q\n')
-  const stream = writer.stream(content.join(''))
-  const page = writer.add(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${numbers([page_width, page_height])}]`
-    + ` /Resources << ${resources()} >> /Contents ${stream} 0 R`
-    + ' /Group << /S /Transparency /CS /DeviceRGB /I true >> >>')
-  writer.set(pages, `<< /Type /Pages /Kids [${page} 0 R] /Count 1 >>`)
+  const page_ids = fragments.map(render_page)
+  writer.set(pages, `<< /Type /Pages /Kids [${page_ids.map(id => `${id} 0 R`).join(' ')}] /Count ${page_ids.length} >>`)
   writer.set(catalog, `<< /Type /Catalog /Pages ${pages} 0 R >>`)
   const info = options.title === undefined ? undefined : writer.add(`<< /Title ${text_string(options.title)} >>`)
   return writer.finish(catalog, info)

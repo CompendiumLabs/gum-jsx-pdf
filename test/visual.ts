@@ -175,4 +175,18 @@ for (const [name, fragment] of Object.entries(fixtures)) {
   assert.ok(mean < 2, `${name}: excessive mean error ${mean}`)
   assert.ok(fraction < 0.025, `${name}: excessive differing pixels ${fraction}`)
 }
-console.log(`Validated ${Object.keys(fixtures).length} PDFs; comparison artifacts: ${output}`)
+// Compare every page to its standalone PDF, including resources first introduced
+// on later pages and reused again after other images/transparency groups.
+const deck = [...Object.entries(fixtures).reverse(), ['images', fixtures.images!] as const,
+  ['opacity', fixtures.opacity!] as const]
+const deck_path = `${output}deck.pdf`
+await Bun.write(deck_path, render_pdf(deck.map(([, fragment]) => fragment), { background: 'white' }))
+run(['qpdf', '--check', deck_path])
+assert.match(run(['pdfinfo', deck_path]), new RegExp(`Pages:\\s+${deck.length}\\b`))
+for (const [index, [name]] of deck.entries()) {
+  const page = String(index + 1), base = `${output}deck-${page}`
+  run(['pdftoppm', '-r', '192', '-f', page, '-l', page, '-singlefile', deck_path, base])
+  assert.deepEqual(await Bun.file(`${base}.ppm`).arrayBuffer(), await Bun.file(`${output}${name}.ppm`).arrayBuffer(),
+    `Deck page ${page} must match standalone ${name}`)
+}
+console.log(`Validated ${Object.keys(fixtures).length} PDFs and a ${deck.length}-page deck; comparison artifacts: ${output}`)

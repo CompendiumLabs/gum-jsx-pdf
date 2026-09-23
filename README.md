@@ -20,7 +20,7 @@ const bytes = render_pdf(fragment, { title: 'Hello', background: 'white' })
 await Bun.write('hello.pdf', bytes)
 ```
 
-`render_pdf(fragment, options?): Uint8Array` is synchronous and works in Bun or
+`render_pdf(fragmentOrPages, options?): Uint8Array` is synchronous and works in Bun or
 the browser. Numeric serialization uses core's shared formatter; PNG decoding and compression use
 `fast-png` and `fflate`, with no native bindings or filesystem access. In a browser,
 the returned bytes can be used in a `Blob` with type `application/pdf`.
@@ -37,7 +37,18 @@ are unaffected. The package uses the unmodified decoder.
 | `points_per_pixel` | `0.75` | Physical scale: 96 layout pixels per inch, 72 PDF points per inch. Use `1` to treat each layout pixel as one point. |
 | `precision` | `10` | Decimal places in numeric output; use 0–100 or `'full'` for unrounded values. |
 
-The single page matches `fragment.size`, clipping any overflow to that viewport.
+Pass a fragment for one page, or a nonempty array of fragments for a multipage
+document. Pages follow array order, and each page matches its own `fragment.size`,
+clipping any overflow to that viewport. Options apply to the whole document;
+images and drawing resources are reused across pages.
+
+```ts
+const pages = ['First slide', 'Second slide'].map(children =>
+  new LayoutPass().layout(new Text({ children, font_size: px(32) })),
+)
+await Bun.write('slides.pdf', render_pdf(pages, { title: 'Slides' }))
+```
+
 Both page dimensions and the scale must be positive and finite. PDF 1.4 page
 dimensions are limited to 14,400 points per side; larger dimensions are rejected.
 
@@ -69,7 +80,7 @@ to one of the supported color formats before export.
 Text remains vector outlines: appearance is preserved, but text is not searchable
 or selectable. Live text from a color font, such as emoji, has no outline and no
 embedded font data here, so exporting it throws an error naming the family. Fragment labels and debug overlays are not exported. The exporter writes deterministic PDF 1.4 files with uncompressed vector content and
-compressed image streams; it does not paginate or produce tagged/accessibility
+compressed image streams; it does not automatically split content across pages or produce tagged/accessibility
 or archival PDF variants.
 
 ## Development
