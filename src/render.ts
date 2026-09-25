@@ -186,8 +186,12 @@ function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions =
 
     function visit(node: Fragment, transform: Transform): void {
       if (node.clip && (node.clip.width === 0 || node.clip.height === 0)) return
-      if (node.clip) {
-        content.push('q\n', matrix_command(transform, numbers), rect_path(node.clip, node.clip.radius, numbers), 'W n\n')
+      if (node.clip_path?.length === 0) return
+      const clipped = node.clip !== undefined || node.clip_path !== undefined
+      if (clipped) {
+        content.push('q\n', matrix_command(transform, numbers))
+        if (node.clip) content.push(rect_path(node.clip, node.clip.radius, numbers), 'W n\n')
+        if (node.clip_path) content.push(path_commands(node.clip_path, numbers), 'W n\n')
         transform = IDENTITY
       }
       for (const draw of node.draw) {
@@ -200,7 +204,7 @@ function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions =
         if (a * d - b * c === 0) continue
         visit(child.fragment, multiply(transform, [a, b, c, d, e + child.offset.x, f + child.offset.y]))
       }
-      if (node.clip) content.push('Q\n')
+      if (clipped) content.push('Q\n')
     }
     visit(fragment, IDENTITY)
     content.push('Q\n')

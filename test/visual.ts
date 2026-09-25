@@ -36,6 +36,13 @@ const clipped = make_fragment({ size: make_size(85, 70),
   draw: [rect(-20, -20, 130, 130, { fill: '#dceaf2', stroke: 'none' })],
   children: [place_fragment(shape, [-5, 8], [1.5, 0.2, 0.4, 1.5, 2, 3])],
 })
+const path_clipped = make_fragment({ ...clipped, clip_path: [
+  { kind: 'M', x: 0, y: 0 }, { kind: 'L', x: 85, y: 0 },
+  { kind: 'Q', x1: 85, y1: 70, x: 0, y: 70 }, { kind: 'Z' },
+  // A reversed inner ring cuts a hole out of the nonzero-winding clip.
+  { kind: 'M', x: 10, y: 10 }, { kind: 'L', x: 10, y: 30 },
+  { kind: 'L', x: 30, y: 30 }, { kind: 'L', x: 30, y: 10 }, { kind: 'Z' },
+] })
 let deep = shape
 for (let i = 0; i < 30; i++) deep = make_fragment({ size: shape.size,
   children: [place_fragment(deep, [0.2, 0.1], [1.002, 0, 0, 0.998, 0, 0])] })
@@ -55,6 +62,8 @@ const image_pass = new LayoutPass()
 const png = image_pass.layout(new PngImage({ data: image_data, width: px(100), height: px(80) }))
 const translucent_png = image_pass.layout(new PngImage({ data: image_data, width: px(90), opacity: 0.5 }))
 const fixtures: Record<string, Fragment> = {
+  path_clips: scene([], [place_fragment(path_clipped, [15, 20], rotation),
+    place_fragment(path_clipped, [130, 15]), place_fragment(shape, [160, 110])]),
   images: scene([rect(0, 0, 240, 160, { fill: '#e5df9a', stroke: 'none' })], [
     place_fragment(png, [5, 0]), place_fragment(translucent_png, [130, 5]),
     place_fragment(png, [110, 80], [-1, 0, 0, 1, 0, 0]),

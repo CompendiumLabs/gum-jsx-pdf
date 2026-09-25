@@ -172,6 +172,23 @@ test('invisible geometry, zero-width strokes and singular transforms paint nothi
   expect(pdf).not.toMatch(/\n(?:f|S)\n/)
 })
 
+test('path clips intersect rectangle clips and restore the transform for siblings', () => {
+  const clip_path = [
+    { kind: 'M', x: 0, y: 0 }, { kind: 'L', x: 20, y: 0 },
+    { kind: 'Q', x1: 10, y1: 15, x: 0, y: 0 }, { kind: 'Z' },
+  ] as const
+  const clipped = make_fragment({ size: leaf.size, clip: make_rect(1, 2, 8, 4), clip_path,
+    children: [place_fragment(leaf, [3, 4])] })
+  const root = make_fragment({ size: make_size(80, 40), children: [
+    place_fragment(clipped, [10, 20], [2, 0, 0, 2, 0, 0]), place_fragment(leaf, [40, 0]),
+  ] })
+  const pdf = decode(render_pdf(root))
+  expect(pdf).toContain('2 0 0 2 10 20 cm\n1 2 8 4 re\nW n\n0 0 m\n20 0 l\n13.3333333333 10 6.6666666667 10 0 0 c\nh\nW n\nq\n1 0 0 1 3 4 cm')
+  expect(pdf).toContain('Q\nQ\nq\n1 0 0 1 40 0 cm')
+  const empty = make_fragment({ size: leaf.size, clip_path: [], children: [place_fragment(leaf)] })
+  expect(decode(render_pdf(empty))).not.toMatch(/\nf\n/)
+})
+
 test('element opacity uses a reusable form while color alpha stays inside', () => {
   const transparent = make_fragment({ size: leaf.size, draw: [
     draw_rect(make_rect(2, 2, 16, 6), { fill: 'rgba(255,0,0,.4)', stroke: 'blue', stroke_width: 2, opacity: 0.5 }),
