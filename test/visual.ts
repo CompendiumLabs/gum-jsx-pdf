@@ -11,7 +11,7 @@ import {
 import { encode } from 'fast-png'
 import type { Drawing, Fragment, Paint, PathCommand, Transform } from '@gum-jsx/core'
 import { createMathFonts, mathToElement } from '@gum-jsx/math'
-import { rasterize_pixels, rasterize_svg } from '@gum-jsx/png'
+import { render_pixels, render_png } from '@gum-jsx/png'
 import { render_pdf } from '../src/index'
 
 for (const tool of ['qpdf', 'pdftoppm', 'pdfinfo']) {
@@ -163,8 +163,8 @@ for (const [name, fragment] of Object.entries(fixtures)) {
   }
   const svg = render_svg(fragment, { background: 'white' })
   await Bun.write(`${base}.svg`, svg)
-  await Bun.write(`${base}-svg.png`, rasterize_svg(svg, { ratio: 2 }))
-  const reference = rasterize_pixels(svg, { ratio: 2 })
+  await Bun.write(`${base}-wasm.png`, render_png(fragment, { ratio: 2, background: 'white' }))
+  const reference = render_pixels(fragment, { ratio: 2, background: 'white' })
   assert.equal(Number(header[1]), reference.width)
   assert.equal(Number(header[2]), reference.height)
   assert.equal(rgb.length, reference.width * reference.height * 3)
