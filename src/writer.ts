@@ -1,5 +1,5 @@
-import { DEFAULT_OUTPUT_PRECISION, output_number_formatter } from '@gum-jsx/core'
-import type { OutputPrecision } from '@gum-jsx/core'
+import { DEFAULT_OUTPUT_PRECISION, output_number_formatter } from '@gum-jsx/core/output'
+import type { OutputPrecision } from '@gum-jsx/core/output'
 
 // PDF numbers cannot use exponent notation, including after decimal-place rounding.
 function expand_exponent(source: string): string {
