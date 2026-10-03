@@ -1,9 +1,10 @@
-import type { Drawing, Fragment, OutputPrecision, PixelRect, Transform } from '@gum-jsx/core'
+import type { Drawing, FontProvider, Fragment, OutputPrecision, PixelRect, Transform } from '@gum-jsx/core'
 import { parse_color } from './color'
 import type { Color } from './color'
 import { ellipse_path, path_commands, rect_path, square_caps } from './path'
 import { PdfWriter, pdf_number_formatter, text_string } from './writer'
 import { embed_png } from './image'
+import { PdfFonts } from './fonts'
 
 type PdfOptions = Readonly<{
   title?: string
@@ -11,6 +12,8 @@ type PdfOptions = Readonly<{
   /** Physical scale; defaults to 72 / 96 points per layout pixel. */
   points_per_pixel?: number
   precision?: OutputPrecision
+  /** The same provider used to lay out live text; embeds only used glyphs. */
+  fonts?: FontProvider
 }>
 
 const IDENTITY: Transform = [1, 0, 0, 1, 0, 0]
@@ -57,13 +60,14 @@ function positive(value: number, name: string): number {
   return value
 }
 
-/** Serialize completed fragments to PDF pages in order, without layout or fonts. */
+/** Serialize completed fragments, sharing image and font resources across pages. */
 function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions = {}): Uint8Array {
   const fragments: readonly Fragment[] = Array.isArray(input) ? input : [input as Fragment]
   if (fragments.length === 0) throw new RangeError('PDF output requires at least one page')
   const { number, numbers } = pdf_number_formatter(options.precision)
   const scale = positive(options.points_per_pixel ?? 72 / 96, 'points_per_pixel')
   const writer = new PdfWriter(), catalog = writer.reserve(), pages = writer.reserve()
+  const fonts = new PdfFonts(writer, options.fonts, number)
   const states = new Map<string, { name: string; id: number }>()
   const forms: { name: string; id: number }[] = []
   const images = new Map<string, { name: string; id: number }>()
@@ -83,7 +87,7 @@ function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions =
     return `/${state.name} gs\n`
   }
   const state_resources = () => `/ExtGState << ${[...states.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
-  const resources = () => `${state_resources()} /XObject << ${[...forms, ...images.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >>`
+  const resources = () => `${state_resources()} /XObject << ${[...forms, ...images.values()].map(({ name, id }) => `/${name} ${id} 0 R`).join(' ')} >> ${fonts.resources()}`
   function transparency_form(content: string, draw: Exclude<Drawing, { kind: 'image' | 'text' }>): string {
     const { x, y, width, height } = drawing_bounds(draw)
     const name = `F${forms.length}`
@@ -114,10 +118,15 @@ function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions =
       drawings.set(draw, content)
       return content
     }
-    // Live text relies on a host font. A PDF would have to embed color glyph
-    // data, so report the family, with no silently missing emoji on the page.
     if (draw.kind === 'text') {
-      throw new TypeError(`PDF output cannot draw live text in ${draw.font_family}: "${draw.text}"`)
+      // Unsupported color glyphs keep their space in the layout.
+      if (draw.color_font !== false) return ''
+      const fill = color(draw.fill)
+      if (!fill || fill[3] === 0 || draw.font_size === 0) return ''
+      const content = (opacity * fill[3] === 1 ? '' : alpha(opacity * fill[3], 1))
+        + `${numbers(fill.slice(0, 3))} rg\n` + fonts.text(draw)
+      drawings.set(draw, content)
+      return content
     }
     let path: string
     switch (draw.kind) {
@@ -214,6 +223,7 @@ function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions =
       + ' /Group << /S /Transparency /CS /DeviceRGB /I true >> >>')
   }
   const page_ids = fragments.map(render_page)
+  fonts.finish()
   writer.set(pages, `<< /Type /Pages /Kids [${page_ids.map(id => `${id} 0 R`).join(' ')}] /Count ${page_ids.length} >>`)
   writer.set(catalog, `<< /Type /Catalog /Pages ${pages} 0 R >>`)
   const info = options.title === undefined ? undefined : writer.add(`<< /Title ${text_string(options.title)} >>`)

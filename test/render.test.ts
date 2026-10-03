@@ -319,11 +319,11 @@ test('malformed PNG content fails at PDF export; invisible images need no decodi
   expect(image_streams(render_pdf(invisible))).toHaveLength(0)
 })
 
-test('live color font text names its family instead of vanishing from the page', () => {
+test('live color font text leaves blank space', () => {
   const font = { family: 'Noto Color Emoji', size: 16 }, bounds = make_rect(0, 0, 20, 19)
   const emoji = (opacity: number) => make_fragment({ size: make_size(20, 20), draw: [
     draw_text('\u{1f600}', { x: 0, y: 15 }, 20, font, { fill: 'black', opacity }, bounds),
   ] })
-  expect(() => render_pdf(emoji(1))).toThrow('cannot draw live text in Noto Color Emoji')
+  expect(render_pdf(emoji(1))).toEqual(render_pdf(emoji(0)))
   check_structure(render_pdf(emoji(0)))
 })

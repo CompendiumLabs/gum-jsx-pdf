@@ -1,8 +1,8 @@
 # @gum-jsx/pdf
 
-PDF export for completed Gum fragments, preserving vector drawings and embedded PNG images. Layout, text
-shaping, and glyph outlines are supplied by `@gum-jsx/core` (and optionally
-`@gum-jsx/math`); the exporter does not load fonts or perform layout.
+PDF export for completed Gum fragments, with native text, vector drawings, and
+embedded PNG images. Layout and text shaping come from `@gum-jsx/core` (and
+optionally `@gum-jsx/math`). Live text embeds subsets of the fonts used for layout.
 
 See the [Gum project](https://github.com/CompendiumLabs/gum-jsx#readme) for
 getting started and the package overview.
@@ -10,20 +10,23 @@ getting started and the package overview.
 ## Usage
 
 ```ts
-import { LayoutPass, Text, px } from '@gum-jsx/core'
+import { Fonts, Text, px, layout_element } from '@gum-jsx/core'
 import { render_pdf } from '@gum-jsx/pdf'
 
-const fragment = new LayoutPass().layout(
+const fonts = new Fonts()
+const { fragment } = layout_element(
   new Text({ children: 'Hello, PDF!', font_size: px(32) }),
+  { fonts, text_mode: 'live' },
 )
-const bytes = render_pdf(fragment, { title: 'Hello', background: 'white' })
+const bytes = render_pdf(fragment, { fonts, title: 'Hello', background: 'white' })
 await Bun.write('hello.pdf', bytes)
 ```
 
 `render_pdf(fragmentOrPages, options?): Uint8Array` is synchronous and works in Bun or
 the browser. Numeric serialization uses core's shared formatter; PNG decoding and compression use
 `fast-png` and `fflate`, with no native bindings or filesystem access. In a browser,
-the returned bytes can be used in a `Blob` with type `application/pdf`.
+the returned bytes can be used in a `Blob` with type `application/pdf`. Await
+`fonts.load()` before browser layout and pass the same provider to `render_pdf`.
 
 Known limitation: `fast-png` 8.0.0 rejects RGB PNGs with only one or two pixels
 and a `tRNS` transparency key. PDF export throws for these images; convert them
@@ -36,17 +39,19 @@ are unaffected. The package uses the unmodified decoder.
 | `background` | omitted | Page background color; otherwise unpainted. |
 | `points_per_pixel` | `0.75` | Physical scale: 96 layout pixels per inch, 72 PDF points per inch. Use `1` to treat each layout pixel as one point. |
 | `precision` | `10` | Decimal places in numeric output; use 0–100 or `'full'` for unrounded values. |
+| `fonts` | omitted | Font provider used for layout; required for live text. |
 
 Pass a fragment for one page, or a nonempty array of fragments for a multipage
 document. Pages follow array order, and each page matches its own `fragment.size`,
 clipping any overflow to that viewport. Options apply to the whole document;
-images and drawing resources are reused across pages.
+images, font subsets, and drawing resources are reused across pages. Use one font
+provider for all pages so each face has a consistent glyph vocabulary.
 
 ```ts
 const pages = ['First slide', 'Second slide'].map(children =>
-  new LayoutPass().layout(new Text({ children, font_size: px(32) })),
+  layout_element(new Text({ children, font_size: px(32) }), { fonts, text_mode: 'live' }).fragment,
 )
-await Bun.write('slides.pdf', render_pdf(pages, { title: 'Slides' }))
+await Bun.write('slides.pdf', render_pdf(pages, { fonts, title: 'Slides' }))
 ```
 
 Both page dimensions and the scale must be positive and finite. PDF 1.4 page
@@ -77,11 +82,21 @@ Unsupported color expressions (including `var()`, `currentColor`, paint URLs,
 wide-gamut colors, and CSS calculations) throw a descriptive error. Resolve them
 to one of the supported color formats before export.
 
-Text remains vector outlines: appearance is preserved, but text is not searchable
-or selectable. Live text from a color font, such as emoji, has no outline and no
-embedded font data here, so exporting it throws an error naming the family. Fragment labels and debug overlays are not exported. The exporter writes deterministic PDF 1.4 files with uncompressed vector content and
-compressed image streams; it does not automatically split content across pages or produce tagged/accessibility
-or archival PDF variants.
+Live text is selectable and searchable. The exporter retains shaped glyph positions,
+embeds one TrueType or CFF subset per used face across the document, and writes
+Unicode mappings for copying. Font size and synthesized oblique do not create extra
+subsets. Math glyphs use the same mechanism; decorations stay vector paths, and
+copying a formula does not reconstruct its TeX source.
+
+Fragments laid out with `text_mode: 'path'` retain outlined, unselectable text and
+need no font provider. Custom providers can support native text with positioned
+`GlyphShape.glyphs` and `MeasuredFont.subset`. Unsupported color fonts such as emoji
+leave blank space at their measured positions.
+
+Fragment labels and debug overlays are not exported. The exporter writes
+deterministic PDF 1.4 files with uncompressed page content and compressed font,
+Unicode-map, and image streams. It does not automatically split content across
+pages or produce tagged/accessibility or archival PDF variants.
 
 ## Development
 
