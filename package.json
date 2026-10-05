@@ -12,17 +12,17 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@gum-jsx/math": "2.0.0",
-    "@gum-jsx/png": "2.0.0",
+    "@gum-jsx/math": "2.1.0-beta.0",
+    "@gum-jsx/png": "2.1.0-beta.0",
     "@types/bun": "latest",
     "typescript": "^7"
   },
   "dependencies": {
     "fast-png": "^8.0.0",
     "fflate": "^0.8.3",
-    "@gum-jsx/core": "2.0.0"
+    "@gum-jsx/core": "2.1.0-beta.0"
   },
-  "version": "2.0.0",
+  "version": "2.1.0-beta.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CompendiumLabs/gum-jsx-pdf.git"
@@ -33,7 +33,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "latest"
+    "tag": "beta"
   },
   "engines": {
     "bun": ">=1.4.2"
