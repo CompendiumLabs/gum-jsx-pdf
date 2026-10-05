@@ -1,11 +1,10 @@
 # @gum-jsx/pdf
 
+[Gum](https://github.com/CompendiumLabs/gum-jsx) — installation, quickstart, and user documentation.
+
 PDF export for completed Gum fragments, with native text, vector drawings, and
 embedded PNG images. Layout and text shaping come from `@gum-jsx/core` (and
 optionally `@gum-jsx/math`). Live text embeds subsets of the fonts used for layout.
-
-See the [Gum project](https://github.com/CompendiumLabs/gum-jsx#readme) for
-getting started and the package overview.
 
 ## Usage
 
