@@ -13,8 +13,16 @@ const unicode = (text: string) => text_string(text).slice(5, -1) // UTF-16BE wit
 // Glyphs are collected while writing content; reserved font objects are filled last.
 class PdfFonts {
   private used = new Map<string, UsedFont>()
-  constructor(private writer: PdfWriter, private fonts: FontProvider | undefined,
-    private number: (value: number) => string) {}
+  private writer: PdfWriter
+  private fonts: FontProvider | undefined
+  private number: (value: number) => string
+
+  constructor(writer: PdfWriter, fonts: FontProvider | undefined,
+    number: (value: number) => string) {
+    this.writer = writer
+    this.fonts = fonts
+    this.number = number
+  }
 
   resources(): string {
     return this.used.size ? `/Font << ${[...this.used.values()]
