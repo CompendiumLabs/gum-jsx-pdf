@@ -1,3 +1,4 @@
+import { prepare_render } from '@gum-jsx/core/output'
 import type { Drawing, FontProvider, Fragment, OutputPrecision, PixelRect, Transform } from '@gum-jsx/core'
 import { parse_color } from './color'
 import type { Color } from './color'
@@ -215,7 +216,7 @@ function render_pdf(input: Fragment | readonly Fragment[], options: PdfOptions =
       }
       if (clipped) content.push('Q\n')
     }
-    visit(fragment, IDENTITY)
+    visit(prepare_render(fragment), IDENTITY)
     content.push('Q\n')
     const stream = writer.stream(content.join(''))
     return writer.add(`<< /Type /Page /Parent ${pages} 0 R /MediaBox [0 0 ${numbers([page_width, page_height])}]`

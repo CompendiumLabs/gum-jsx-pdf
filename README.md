@@ -92,7 +92,8 @@ need no font provider. Custom providers can support native text with positioned
 `GlyphShape.glyphs` and `MeasuredFont.subset`. Unsupported color fonts such as emoji
 leave blank space at their measured positions.
 
-Fragment labels and debug overlays are not exported. The exporter writes
+Debug overlays are exported as ordinary vector paths through the shared
+`prepare_render` step. Fragment labels are not exported. The exporter writes
 deterministic PDF 1.4 files with uncompressed page content and compressed font,
 Unicode-map, and image streams. It does not automatically split content across
 pages or produce tagged/accessibility or archival PDF variants.
