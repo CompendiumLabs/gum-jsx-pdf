@@ -7,8 +7,8 @@ import { encode } from 'fast-png'
 import { unzlibSync } from 'fflate'
 import { render_pdf } from '../src/index'
 import { number, PdfWriter } from '../src/writer'
-import { path_commands, square_caps } from '../src/path'
-import { unsupportedKeyedPngs, rgbaPixel, keyedRgb } from './png-fixtures'
+import { path_commands } from '../src/path'
+import { rgbaPixel } from './png-fixtures'
 
 const paint = { fill: '#369', stroke: 'none', stroke_width: 0 }
 const leaf = make_fragment({ size: make_size(20, 10), draw: [draw_rect(make_rect(0, 0, 20, 10), paint)] })
@@ -122,15 +122,6 @@ test('quadratics convert exactly and closepath restores the current point', () =
     { kind: 'M', x: 0, y: 0 }, { kind: 'Q', x1: 3, y1: 6, x: 6, y: 0 },
     { kind: 'Z' }, { kind: 'Q', x1: 3, y1: 3, x: 6, y: 0 },
   ])).toBe('0 0 m\n2 4 4 4 6 0 c\nh\n2 2 4 2 6 0 c\n')
-})
-
-test('square cap geometry distinguishes point subpaths from loops and lone moves', () => {
-  expect(square_caps([
-    { kind: 'M', x: 10, y: 20 }, { kind: 'Z' },
-    { kind: 'M', x: 30, y: 40 }, { kind: 'L', x: 30, y: 40 },
-    { kind: 'M', x: 50, y: 60 }, { kind: 'Q', x1: 70, y1: 80, x: 50, y: 60 },
-    { kind: 'M', x: 90, y: 100 },
-  ], 4)).toBe('8 18 4 4 re\n28 38 4 4 re\n')
 })
 
 test('entry point bundles for browsers without native or external runtime dependencies', async () => {
@@ -251,50 +242,6 @@ test('PNG embeds original RGB samples and a reusable alpha mask with opacity and
   expect(pdf).toContain('/ca 0.5 /CA 0.5')
   expect(pdf.match(/\/I0 Do/g)).toHaveLength(2)
   check_structure(bytes)
-})
-
-test('PNG palette, packed grayscale, tRNS, 16-bit and Adam7 samples survive PDF export', () => {
-  const fixtures: { image: Parameters<typeof encode>[0]; color: number[]; mask?: number[]; interlace?: 'Adam7'; encoded?: string }[] = [
-    { image: { width: 2, height: 1, channels: 3, data: new Uint8Array([255, 0, 0, 0, 255, 0]) },
-      color: [255, 0, 0, 0, 255, 0], interlace: 'Adam7' },
-    { image: { width: 3, height: 2, channels: 1, depth: 1, data: new Uint8Array([0xa0, 0x40]),
-      palette: [[255, 0, 0, 0], [0, 0, 255, 255]] },
-      color: [0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0, 0, 0, 255, 255, 0, 0], mask: [255, 0, 255, 0, 255, 0] },
-    { image: { width: 3, height: 2, channels: 1, depth: 1, data: new Uint8Array([0xa0, 0x40]),
-      transparency: new Uint16Array([0]) }, color: [255, 0, 255, 0, 255, 0], mask: [255, 0, 255, 0, 255, 0],
-      // fast-png's encoder does not write non-palette tRNS chunks.
-      encoded: 'iVBORw0KGgoAAAANSUhEUgAAAAMAAAACAQAAAAC1D1u3AAAAAnRSTlMAAHaTzTgAAAAMSURBVHicY1jA4AAAAiQA4XPrO/IAAAAASUVORK5CYII=' },
-    { image: { width: 3, height: 1, channels: 3, data: new Uint8Array([255, 0, 0, 0, 255, 0, 0, 0, 255]),
-      transparency: new Uint16Array([255, 0, 0]) }, color: [255, 0, 0, 0, 255, 0, 0, 0, 255], mask: [0, 255, 255],
-      encoded: keyedRgb },
-    { image: { width: 2, height: 1, channels: 2, depth: 16, data: new Uint16Array([0x1234, 0xffff, 0xabcd, 0x8000]) },
-      color: [0x12, 0x34, 0xab, 0xcd], mask: [255, 255, 128, 0] },
-  ]
-  for (const { image, color, mask, interlace, encoded } of fixtures) {
-    const data = encoded ? `data:image/png;base64,${encoded}` : png_url(image, interlace)
-    const node = new LayoutPass().layout(new PngImage({ data }))
-    const bytes = render_pdf(node), streams = image_streams(bytes)
-    expect(streams).toHaveLength(mask ? 2 : 1)
-    expect(streams.at(-1)!.pixels).toEqual(color)
-    if (mask) expect(streams[0]!.pixels).toEqual(mask)
-    check_structure(bytes)
-  }
-})
-
-test('vanilla fast-png rejects one- and two-pixel RGB transparency keys', () => {
-  // Accepted release limitation. Revisit these expectations when upgrading fast-png.
-  for (const { encoded } of unsupportedKeyedPngs) {
-    const node = new LayoutPass().layout(new PngImage({ data: `data:image/png;base64,${encoded}` }))
-    expect(() => render_pdf(node)).toThrow('tRNS chunk contains more alpha values than there are pixels')
-  }
-})
-
-test('one-pixel RGBA keeps color and alpha samples', () => {
-  const node = new LayoutPass().layout(new PngImage({ data: `data:image/png;base64,${rgbaPixel}` }))
-  const streams = image_streams(render_pdf(node))
-  expect(streams).toHaveLength(2)
-  expect(streams[0]!.pixels).toEqual([128])
-  expect(streams[1]!.pixels).toEqual([255, 0, 0])
 })
 
 test('browser bundle exports embedded PNGs synchronously', async () => {

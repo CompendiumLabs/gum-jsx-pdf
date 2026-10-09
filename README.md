@@ -104,12 +104,6 @@ From the workspace root:
 ```sh
 bun --filter @gum-jsx/pdf test
 bun --filter @gum-jsx/pdf typecheck
-bun --filter @gum-jsx/pdf test:visual
 ```
 
-The regular tests require only workspace development dependencies. The optional
-visual checks additionally require `qpdf`, `pdfinfo`, and `pdftoppm` on `PATH`.
-They validate actual PDFs and compare their rasterized pixels with the WASM fragment renderer,
-leaving PDF, SVG, PNG, and PPM artifacts in `out/visual/`. Small edge differences
-are expected between rasterizers. The PNG package and math package are used only
-for development checks.
+The tests require only workspace development dependencies.

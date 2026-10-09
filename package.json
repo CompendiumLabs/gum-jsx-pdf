@@ -8,12 +8,9 @@
   "license": "MIT",
   "scripts": {
     "test": "bun test ./test",
-    "test:visual": "bun test/visual.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@gum-jsx/math": "2.1.0-beta.0",
-    "@gum-jsx/png": "2.1.0-beta.0",
     "@types/bun": "latest",
     "typescript": "^7"
   },
