@@ -17,9 +17,9 @@
   "dependencies": {
     "fast-png": "^8.0.0",
     "fflate": "^0.8.3",
-    "@gum-jsx/core": "2.1.0-beta.1"
+    "@gum-jsx/core": "2.1.0"
   },
-  "version": "2.1.0-beta.1",
+  "version": "2.1.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/CompendiumLabs/gum-jsx-pdf.git"
@@ -30,7 +30,7 @@
   },
   "publishConfig": {
     "access": "public",
-    "tag": "beta"
+    "tag": "latest"
   },
   "engines": {
     "node": ">=24",
